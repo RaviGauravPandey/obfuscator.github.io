@@ -4,6 +4,9 @@
 
 A privacy-first HTML & JavaScript obfuscator that runs entirely in the browser. It processes complete HTML documents, automatically detects embedded JavaScript, and obfuscates it while preserving functionality and HTML-JavaScript interactions.
 
+## 🧪 Try it instantly
+
+👉 [Open Obfuscator](https://ravigauravpandey.github.io/obfuscator/)
 ---
 
 ## 🚀 Features
