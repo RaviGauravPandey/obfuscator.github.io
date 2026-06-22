@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal JavaScript Code Hardener (Synchronized HTML/AST Edition)</title>
+    <style>
+        :root {
+            --bg-main: #0a0b0d;
+            --bg-panel: #12141c;
+            --bg-input: #1a1d29;
+            --border: #2a2f45;
+            --text-main: #f0f2f5;
+            --text-muted: #9fa6bc;
+            --accent: #38761d;
+            --accent-hover: #458e24;
+            --accent-glow: rgba(56, 118, 29, 0.3);
+            --success: #2ed573;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg-main);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            padding: 24px;
+            box-sizing: border-box;
+        }
+
+        .workspace-wrapper {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .app-header {
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 16px;
+            margin-bottom: 24px;
+        }
+
+        .app-header h1 {
+            margin: 0 0 6px 0;
+            font-size: 24px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+        }
+
+        .app-header p {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 1024px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .options-panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            height: fit-content;
+        }
+
+        .options-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 700;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .control-label {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 13px;
+            cursor: pointer;
+            color: var(--text-main);
+            user-select: none;
+            line-height: 1.4;
+        }
+
+        .control-label input {
+            margin-top: 2px;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        .control-label span {
+            display: block;
+        }
+
+        .control-label .opt-desc {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .compiler-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .editor-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .editor-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel-pane {
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .pane-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 620px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: #a6e22e;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            padding: 16px;
+            box-sizing: border-box;
+            resize: vertical;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px var(--accent-glow);
+        }
+
+        textarea[readonly] {
+            color: #66d9ef;
+            background: #11131a;
+        }
+
+        .action-bar {
+            display: flex;
+            justify-content: center;
+            margin-top: 8px;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: var(--text-main);
+            border: 1px solid transparent;
+            padding: 14px 40px;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            box-shadow: 0 0 16px var(--accent-glow);
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 28px;
+            right: 12px;
+            background: rgba(26, 29, 41, 0.85);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 6px 12px;
+            font-size: 11px;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.15s ease;
+            z-index: 5;
+        }
+
+        .copy-btn:hover {
+            background: var(--border);
+            border-color: var(--text-muted);
+        }
+
+        .copy-btn.success {
+            background: rgba(46, 213, 115, 0.2);
+            border-color: var(--success);
+            color: var(--success);
+        }
+
+        .copy-btn svg {
+            width: 12px;
+            height: 12px;
+            fill: currentColor;
+        }
+    </style>
+
+    <script src="js/acorn.min.js" onerror="this.src='https://cdnjs.cloudflare.com/ajax/libs/acorn/8.11.3/acorn.min.js'"></script>
+    <script src="js/astring.min.js" onerror="this.src='https://cdn.jsdelivr.net/npm/astring@1.8.6/dist/astring.min.js'"></script>
+</head>
+<body>
+
+<div class="workspace-wrapper">
+    <header class="app-header">
+        <h1>Universal JavaScript Code Hardener</h1>
+        <p>Lexical Scope Tree Compilation Coupled with Dynamic HTML Event Attribute Synchronization.</p>
+    </header>
+
+    <div class="main-layout">
+        <aside class="options-panel">
+            <div class="options-title">Compilation Steps</div>
+            <div class="checkbox-group">
+                <label class="control-label">
+                    <input type="checkbox" id="opt_string_unicode" checked>
+                    <span>String to Unicode<div class="opt-desc">Converts raw text strings into hexadecimal escape structures.</div></span>
+                </label>
+                <label class="control-label">
+                    <input type="checkbox" id="opt_dot_bracket" checked>
+                    <span>Dot Punctuation to Bracket<div class="opt-desc">Transforms property accessor chains into string indices lookups.</div></span>
+                </label>
+                <label class="control-label">
+                    <input type="checkbox" id="opt_comments" checked>
+                    <span>Strip Comments<div class="opt-desc">Removes block comments and uniform code annotations.</div></span>
+                </label>
+                <label class="control-label">
+                    <input type="checkbox" id="opt_compact" checked>
+                    <span>Compact Code<div class="opt-desc">Minifies indentation white-spaces, tabs, and layout line breaks.</div></span>
+                </label>
+                <label class="control-label">
+                    <input type="checkbox" id="opt_zombie">
+                    <span>Zombie Code Insertion<div class="opt-desc">Injects dummy statements between explicit code sequences.</div></span>
+                </label>
+                <label class="control-label">
+                    <input type="checkbox" id="opt_numeric" checked>
+                    <span>Numeric Literal Encode<div class="opt-desc">Transforms flat integers into dynamic XOR equation results.</div></span>
+                </label>
+                <label class="control-label">
+                    <input type="checkbox" id="opt_boolean" checked>
+                    <span>Boolean Literal Encode<div class="opt-desc">Transforms primitive flags into array expression conversions (!![]).</div></span>
+                </label>
+                <label class="control-label">
+                    <input type="checkbox" id="opt_obfuscate_bindings" checked>
+                    <span>Lexical Scope Obfuscation<div class="opt-desc">Maps and renames local declarations while preserving environmental APIs.</div></span>
+                </label>
+                <label class="control-label">
+                    <input type="checkbox" id="opt_sync_markup" checked>
+                    <span>Sync HTML Tag Event Handlers<div class="opt-desc">Parses markup tag bounds to synchronize inline event attributes dynamically.</div></span>
+                </label>
+            </div>
+        </aside>
+
+        <main class="compiler-container">
+            <div class="editor-grid">
+                <div class="panel-pane">
+                    <div class="pane-label">Source Input Script</div>
+                    <textarea id="inputCode" placeholder="Paste full HTML page or raw JavaScript script blocks here..."></textarea>
+                </div>
+                <div class="panel-pane">
+                    <div class="pane-label">Hardened Output Result</div>
+                    <button class="copy-btn" onclick="copyResultToClipboard()">
+                        <svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                        <span id="copyBtnText">Copy Output</span>
+                    </button>
+                    <textarea id="outputCode" readonly placeholder="Compiled AST pipeline outputs will display here..."></textarea>
+                </div>
+            </div>
+
+            <div class="action-bar">
+                <button class="btn-primary" onclick="executeProductionHardeningPipeline()">COMPILE SOURCE ASSET PIPELINE</button>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script>
+    function toUnicodeEscape(str) {
+        let output = "";
+        for (let i = 0; i < str.length; i++) {
+            output += "\\u" + str.charCodeAt(i).toString(16).toUpperCase().padStart(4, "0");
+        }
+        return output;
+    }
+
+    // --- STATEFUL LEXICAL SCOPE CLASS FOR GRAPH TREE MAPPING ---
+    class Scope {
+        constructor(parent = null) {
+            this.parent = parent;
+            this.bindings = new Map(); // Maps old string names to their mutated configuration
+            this.references = [];      // Tracked references array
+        }
+
+        addBinding(name, node) {
+            this.bindings.set(name, { node, newName: null });
+        }
+
+        getBinding(name) {
+            if (this.bindings.has(name)) return this.bindings.get(name);
+            if (this.parent) return this.parent.getBinding(name);
+            return null;
+        }
+    }
+
+    // Main AST and Text Parser Processor Core
+    function obfuscateJavaScriptText(jsContent, globalRefMapOut) {
+        if (!jsContent.trim()) return jsContent;
+
+        const ast = acorn.parse(jsContent, { ecmaVersion: 2022, sourceType: "module", allowHashBang: true });
+        
+        let globalScope = new Scope();
+        let currentScope = globalScope;
+        let hexCounter = 0x1a2b;
+
+        // --- FIRST PASS: HARVEST DEFINITIONS AND EXTRACT INTERACTION BINDINGS ---
+        function harvestWalk(node, parent) {
+            if (!node) return;
+
+            let isNewScope = node.type === 'FunctionDeclaration' || 
+                             node.type === 'FunctionExpression' || 
+                             node.type === 'ArrowFunctionExpression' || 
+                             node.type === 'BlockStatement';
+
+            if (isNewScope) {
+                currentScope = new Scope(currentScope);
+            }
+
+            // Bind explicitly declared internal tracking metrics
+            if (node.type === 'VariableDeclarator' && node.id.type === 'Identifier') {
+                currentScope.addBinding(node.id.name, node.id);
+            }
+            if (node.type === 'FunctionDeclaration' && node.id) {
+                let targetScope = isNewScope ? currentScope.parent : currentScope;
+                targetScope.addBinding(node.id.name, node.id);
+            }
+            if (parent && (parent.type === 'FunctionDeclaration' || parent.type === 'ArrowFunctionExpression')) {
+                if (node.type === 'Identifier' && parent.params.includes(node)) {
+                    currentScope.addBinding(node.name, node);
+                }
+            }
+
+            for (let key in node) {
+                if (node[key] && typeof node[key] === 'object') {
+                    if (Array.isArray(node[key])) {
+                        node[key].forEach(child => harvestWalk(child, node));
+                    } else {
+                        harvestWalk(node[key], node);
+                    }
+                }
+            }
+
+            if (isNewScope) {
+                currentScope = currentScope.parent;
+            }
+        }
+
+        // Run Harvesting execution track
+        harvestWalk(ast, null);
+
+        // --- SECOND PASS: RESOLVE INTERIOR LEXICAL REFERENCE TREES ---
+        currentScope = globalScope;
+        function mutationWalk(node, parent) {
+            if (!node) return;
+
+            let isNewScope = node.type === 'FunctionDeclaration' || 
+                             node.type === 'FunctionExpression' || 
+                             node.type === 'ArrowFunctionExpression' || 
+                             node.type === 'BlockStatement';
+            if (isNewScope) currentScope = new Scope(currentScope);
+
+            if (document.getElementById("opt_obfuscate_bindings").checked) {
+                // --- TARGET BLOCK A: FUNCTION DECLARATIONS ---
+                if (node.type === 'FunctionDeclaration' && node.id) {
+                    let binding = currentScope.getBinding(node.id.name);
+                    if (binding) {
+                        if (!binding.newName) {
+                            binding.newName = '_0x' + (hexCounter++).toString(16);
+                            
+                            let originalName = node.id.name;
+                            node.id.name = binding.newName;
+                            
+                            // Map both directions to ensure the HTML sync regex can look it up successfully
+                            globalRefMapOut.set(originalName, binding.newName);
+                            globalRefMapOut.set(binding.newName, binding.newName);
+                        }
+                    }
+                }
+
+                // --- TARGET BLOCK B: VARIABLE IDENTIFIERS & REFERENCES ---
+                if (node.type === 'Identifier') {
+                    const isMemberProperty = parent && parent.type === 'MemberExpression' && parent.property === node && !parent.computed;
+                    const isObjectKey = parent && parent.type === 'Property' && parent.key === node && !parent.computed;
+                    
+                    if (!isMemberProperty && !isObjectKey) {
+                        let binding = currentScope.getBinding(node.name);
+                        if (binding) {
+                            if (!binding.newName) {
+                                binding.newName = '_0x' + (hexCounter++).toString(16);
+                                
+                                let originalName = binding.node.name;
+                                binding.node.name = binding.newName;
+                                
+                                if (currentScope === globalScope || currentScope.parent === globalScope) {
+                                    globalRefMapOut.set(originalName, binding.newName);
+                                    globalRefMapOut.set(binding.newName, binding.newName);
+                                }
+                            }
+                            
+                            let lookupKey = binding.node.name;
+                            if (parent && parent.type === 'FunctionDeclaration' && node === parent.id) {
+                                lookupKey = binding.newName;
+                            }
+                            globalRefMapOut.set(lookupKey, binding.newName);
+                            
+                            node.name = binding.newName;
+                        }
+                    }
+                }
+            }
+
+            for (let key in node) {
+                if (node[key] && typeof node[key] === 'object') {
+                    if (Array.isArray(node[key])) {
+                        node[key].forEach(child => mutationWalk(child, node));
+                    } else {
+                        mutationWalk(node[key], node);
+                    }
+                }
+            }
+
+            if (isNewScope) currentScope = currentScope.parent;
+        }
+
+        // Run Local Renaming Pass
+        mutationWalk(ast, null);
+
+        // --- THIRD PASS: ATOMIC TYPE TRANSFORMATIONS AND OBFUSCATION HOOKS ---
+        function transformWalk(node, parent) {
+            if (!node) return;
+
+            // Numeric Literals XOR split logic
+            if (document.getElementById("opt_numeric").checked && node.type === 'Literal' && typeof node.value === 'number') {
+                let rawVal = node.value;
+                if (Number.isInteger(rawVal) && rawVal >= 0) {
+                    let mask = Math.floor(Math.random() * 40000) + 10000;
+                    let xorResult = rawVal ^ mask;
+                    node.type = 'BinaryExpression';
+                    node.operator = '^';
+                    node.left = { type: 'Literal', value: xorResult, raw: String(xorResult) };
+                    node.right = { type: 'Literal', value: mask, raw: String(mask) };
+                    return; 
+                }
+            }
+
+            // Boolean primitive maps 
+            if (document.getElementById("opt_boolean").checked && node.type === 'Literal' && typeof node.value === 'boolean') {
+                node.type = 'UnaryExpression';
+                node.operator = '!';
+                node.prefix = true;
+                let subExpression = {
+                    type: 'UnaryExpression', operator: '!', prefix: true,
+                    argument: { type: 'ArrayExpression', elements: [] }
+                };
+                node.argument = (node.value === true) ? subExpression : { type: 'ArrayExpression', elements: [] };
+                return; 
+            }
+
+            // String encoding literals conversion block
+            if (document.getElementById("opt_string_unicode").checked && node.type === 'Literal' && typeof node.value === 'string') {
+                node.raw = `"${toUnicodeEscape(node.value)}"`;
+            }
+
+            // Member expressions access transformation loops
+            if (document.getElementById("opt_dot_bracket").checked && node.type === 'MemberExpression' && !node.computed) {
+                let propName = node.property.name;
+                node.computed = true;
+                node.property = {
+                    type: 'Literal', value: propName,
+                    raw: document.getElementById("opt_string_unicode").checked ? `"${toUnicodeEscape(propName)}"` : `"${propName}"`
+                };
+            }
+
+            // Inject structural zombie statement tokens inside blocks
+            if (document.getElementById("opt_zombie").checked && node.type === 'BlockStatement') {
+                let injectedBody = [];
+                node.body.forEach(statement => {
+                    injectedBody.push(statement);
+                    let dummyHex = Math.floor(Math.random() * 50000).toString(16);
+                    injectedBody.push({
+                        type: 'VariableDeclaration', kind: 'var',
+                        declarations: [{
+                            type: 'VariableDeclarator',
+                            id: { type: 'Identifier', name: `_0xzm_${dummyHex}` },
+                            init: { type: 'Literal', value: 'zombie', raw: '"zombie"' }
+                        }]
+                    });
+                });
+                node.body = injectedBody;
+            }
+
+            for (let key in node) {
+                if (node[key] && typeof node[key] === 'object') {
+                    if (Array.isArray(node[key])) {
+                        node[key].forEach(child => transformWalk(child, node));
+                    } else {
+                        transformWalk(node[key], node);
+                    }
+                }
+            }
+        }
+
+        // Run structural transformations pass
+        transformWalk(ast, null);
+
+        let outputOptions = {};
+        if (document.getElementById("opt_compact").checked) {
+            outputOptions.indent = "";
+            outputOptions.lineEnd = "";
+        }
+
+        let outputResult = astronomy_code = astring.generate(ast, outputOptions);
+        if (document.getElementById("opt_comments").checked) {
+            outputResult = outputResult.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, '$1');
+        }
+
+        return outputResult;
+    }
+
+    // --- MAIN EXECUTOR AND SYNCHRONIZER PIPELINE ---
+    function executeProductionHardeningPipeline() {
+        // Strict Local Memory Verification
+        if (typeof acorn === 'undefined' || typeof astring === 'undefined') {
+            document.getElementById("outputCode").value = 
+                "Asset Pipeline AST Error: Local dependencies not found in window namespace.\n\n" +
+                "FIX:\n" +
+                "1. Confirm that 'acorn.js' and 'astring.js' are located in the SAME folder as this HTML file.\n" +
+                "2. Ensure the filenames match the <script src=\"...\"> tags exactly (all lowercase).";
+            return;
+        }
+
+        const fullText = document.getElementById("inputCode").value;
+        if (!fullText || !fullText.trim()) {
+            alert("Terminal Input source queue empty!");
+            return;
+        }
+        
+
+        try {
+            let processedOutput = "";
+            const scriptTagRegex = /(<script\b[^>]*>)([\s\S]*?)(<\/script>)/gi;
+            const sharedGlobalRegistry = new Map(); // Shared state machine tracking global signature alterations
+
+            if (scriptTagRegex.test(fullText)) {
+                scriptTagRegex.lastIndex = 0; 
+                
+                // First pass execution track: Process the inner code layers and generate reference keys
+                processedOutput = fullText.replace(scriptTagRegex, function(match, openTag, innerJS, closeTag) {
+                    let compiledJS = obfuscateJavaScriptText(innerJS, sharedGlobalRegistry);
+                    return `${openTag}\n${compiledJS}\n${closeTag}`;
+                });
+
+                // Second pass synchronization loop: Scan HTML using the exact universal word-boundary regex match rule
+                if (document.getElementById("opt_sync_markup").checked && sharedGlobalRegistry.size > 0) {
+                    // Pattern constraint looks inside layout brackets (<...>) for space-led event headers (\bon...)
+                    const universalEventRegex = /(<\w+\b[^>]*?\s)(on[a-zA-Z]+)\s*=\s*(["'])(.*?)\3/gi;
+                    
+                    processedOutput = processedOutput.replace(universalEventRegex, function(fullMatch, tagPrefix, eventAttr, quote, attrValue) {
+                        // Isolate individual word tokens bounded strictly inside the action quotes execution space
+                        let updatedAttrValue = attrValue.replace(/\b[a-zA-Z_$][a-zA-Z0-9_$]*\b/g, function(token) {
+                            // Verify identity matching bounds inside the compiled AST registry map cleanly
+                            if (sharedGlobalRegistry.has(token)) {
+                                return sharedGlobalRegistry.get(token);
+                            }
+                            return token;
+                        });
+                        return `${tagPrefix}${eventAttr}=${quote}${updatedAttrValue}${quote}`;
+                    });
+                }
+            } else {
+                // Raw JS fallback frame layout
+                processedOutput = obfuscateJavaScriptText(fullText, sharedGlobalRegistry);
+            }
+
+            document.getElementById("outputCode").value = processedOutput;
+
+        } catch (err) {
+            document.getElementById("outputCode").value = "Asset Pipeline AST Error: " + err.message;
+        }
+    }
+
+    function copyResultToClipboard() {
+        const outputArea = document.getElementById("outputCode");
+        if (!outputArea.value) return;
+
+        navigator.clipboard.writeText(outputArea.value).then(() => {
+            const copyBtnText = document.getElementById("copyBtnText");
+            const copyBtn = document.querySelector(".copy-btn");
+            
+            copyBtnText.textContent = "Copied Success!";
+            copyBtn.classList.add("success");
+            
+            setTimeout(() => {
+                copyBtnText.textContent = "Copy Output";
+                copyBtn.classList.remove("success");
+            }, 2000);
+        }).catch(err => {
+            alert("Clipboard interface denied: " + err);
+        });
+    }
+</script>
+
+</body>
+</html>
